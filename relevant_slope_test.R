@@ -53,9 +53,13 @@ i<-21
 source(file = "relevant_slope.R")
 for( i in 1:NROW(gpx.3035@coords)) {
   print(i)
+  # convert the track point to a 1x2 matrix
   track.point <- matrix(gpx.3035@coords[i,], ncol = 2)
+  # determine the relevant slope area
   rsa.points <- rsa(dem.simplon, slope.simplon, aspect.simplon.rad, pcurv.simplon, track.point)
-  jpeg(paste0("spitzhorli_", sprintf("name_%03d", i), ".jpg"), width = 2*480, height = 2*480)
+  
+  # plot the DEM, the track, the selected point, it's RSA
+  jpeg(paste0("spitzhorli_", sprintf("_%03d", i), ".jpg"), width = 2*480, height = 2*480)
   plot(dem.track, col = terrain.colors(20))
   points(track.point, col = 'red', pch=19)
   lines(track.line)
@@ -72,6 +76,14 @@ for (j in (1:3)) {
 rsa.hull <- rsa.points.matrix[chull(rsa.points.matrix),]
 points(rsa.hull, col="green", pch=19)
 rsa.polygon <- SpatialPolygons( list(  Polygons(list(Polygon(rsa.hull)), 1)))
+
+rsa.slopes <- extract(slope.simplon, rsa.polygon)
+rsa.slope.quant.80 <- quantile(rsa.slopes[[1]], 0.8)
+rsa.slope.mean <- mean(rsa.slopes[[1]])
+rsa.slope.max <- max(rsa.slopes[[1]])
+
+
+
 plot(rsa.polygon, add=T)
 polygon.raster <- crop(dem.track, extent(rsa.polygon))
 r.slope.polygon <- crop(slope.simplon, extent(rsa.polygon))

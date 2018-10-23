@@ -53,6 +53,32 @@ rsa <- function(r.elev, r.slope, r.aspect, r.pcurv, track.point) {
                                  Lines(Line(uphill.line.from.left), ID="left"),
                                  Lines(Line(uphill.line.from.right), ID="right")))
   
+  # convert the lines into a polygon
+  rsa.points.matrix <- matrix(ncol = 2, nrow = 0)  
+  for (j in (1:3)) {
+    rsa.points.matrix <- rbind(rsa.points.matrix,
+                               all.lines@lines[[j]]@Lines[[1]]@coords)
+  }
+  # convex hull, maybe not ideal
+  rsa.hull <- rsa.points.matrix[chull(rsa.points.matrix),]
+  # points(rsa.hull, col="green", pch=19)
+  # convert the hull to a polygon
+  rsa.polygon <- SpatialPolygons(list(Polygons(list(Polygon(rsa.hull)), 1)))
+  # plot(rsa.polygon, add=T)
+  polygon.raster <- crop(dem.track, extent(rsa.polygon))
+  # crop the slope raster to the polygon
+  r.slope.polygon <- crop(r.slope, extent(rsa.polygon))
+  # select raster points in the polygon
+  points.in.polygon <- over(SpatialPoints(rasterToPoints(r.slope.polygon)), 
+                            rsa.polygon)
+  points.in.polygon[is.na(points.in.polygon)] <- FALSE
+  points.in.polygon[points.in.polygon == 1] <- TRUE
+  sum(values(r.slope.polygon) * points.in.polygon) / sum(points.in.polygon)
+  max(values(r.slope.polygon) * points.in.polygon)
+  plot(r.slope.polygon)
+  
+  extract(ras_temp.new, polygon, fun=mean, na.rm=TRUE, sp = T)
+  
   return(all.lines)
 }
 
