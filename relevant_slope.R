@@ -5,6 +5,8 @@
 slopeProps <- setClass("slopeProps",
                        slots = c(borderLines = "SpatialLines",
                                  relevantSlopePolygon = "SpatialPolygons",
+                                 localSlope = "numeric",
+                                 localAspect = "numeric",
                                  maxSlope = "SpatialPointsDataFrame",
                                  meanSlope = "numeric"))
 
@@ -134,6 +136,8 @@ rsa <- function(r.elev, r.slope, r.aspect, r.pcurv, track.point) {
   
   return(slopeProps(borderLines = borderLines,
                     relevantSlopePolygon = relevantSlopePolygon,
+                    localSlope = extract(r.slope, track.point),
+                    localAspect = extract(r.aspect, track.point),
                     maxSlope = max.slope.point.in.rsa,
                     meanSlope = mean.slope.in.rsa))
 }
