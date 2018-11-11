@@ -110,7 +110,7 @@ calculate.track.props <- function(gpx.spdf, gpx.plots.path, gpx.file, gpx.type) 
   
   points.df <- data.frame(gpx.file = gpx.file,
                           lon = gpx.spdf@coords[,1],
-                          lat = gpx.spdf@coords[,1],
+                          lat = gpx.spdf@coords[,2],
                           dt.s = track.dt.s,
                           dx.m = dist.m,
                           ele = gpx.spdf@data$ele)
@@ -156,20 +156,9 @@ for (gpx.file in track.list) {
     # It reads as a track
     gpx.type <- "track"
     myTrackProps <- calculate.track.props(gpx.track.spdf, gpx.plots.path, gpx.file, gpx.type) 
-    # write.table(file = paste0(gpx.summary.path, sub(pattern = ".gpx", ".txt", gpx.file)),
-    #             track.summary.df, row.names = FALSE, sep = '\t')
-    # if (is.na(track.summary.df$start.time)) {
-    #   browser()
-    # }
     tracks.summary.df <- rbind(tracks.summary.df, myTrackProps@trackSummary)
-    write.table(file = paste0(gpx.summary.path, "tracks_summary.txt"), sep = "\t",
-                tracks.summary.df, row.names = FALSE, quote = FALSE)
-    
     track.points.df <- rbind(track.points.df, myTrackProps@trackPoints)
-    # if (is.na(sum(is.na(tracks.summary.df$start.time)))) {
-    #   browser()
-    # }
-    
+
   } else {
     # try to read as a route
     try.route <- try(gpx.route.spdf<- readOGR(dsn = gpx.file.full.path, layer = "route_points"))
@@ -185,19 +174,8 @@ for (gpx.file in track.list) {
           file.remove(gpx.file.full.path) }
       } else {
         myTrackProps <- calculate.track.props(gpx.route.spdf, gpx.plots.path, gpx.file, gpx.type) 
-        # write.table(file = paste0(gpx.summary.path, sub(pattern = ".gpx", ".txt", gpx.file)),
-        #             track.summary.df, row.names = FALSE, sep = '\t')
-        # if (is.na(track.summary.df$start.time)) {
-        #   browser()
-        # }
         tracks.summary.df <- rbind(tracks.summary.df, myTrackProps@trackSummary)
-        write.table(file = paste0(gpx.summary.path, "tracks_summary.txt"), sep = "\t",
-                    tracks.summary.df, row.names = FALSE, quote = FALSE)
-        
         track.points.df <- rbind(track.points.df, myTrackProps@trackPoints)
-        # if (is.na(sum(is.na(tracks.summary.df$start.time)))) {
-        #   browser()
-        # }
       }
     } else {
       # dump it
@@ -208,15 +186,10 @@ for (gpx.file in track.list) {
   }
 } # loop over all gpx files
       
-    # # check if it's a route instead of a track
-    #   print(paste0("Not a track but a route: ", gpx.file, ". Moved to /routes"))
-    #   if (file.copy(gpx.file.full.path, paste0(gpx.track.path, "routes/", gpx.file))) {
-    #     file.remove(gpx.file.full.path) }
-
-# write.table(file = paste0(gpx.summary.path, "tracks_summary.txt"), sep = "\t",
-#                           tracks.summary.df, row.names = FALSE, quote = FALSE)
 write.table(file = paste0(gpx.summary.path, "tracks_points.txt"), sep = "\t",
             track.points.df, row.names = FALSE, quote = FALSE)
+write.table(file = paste0(gpx.summary.path, "tracks_summary.txt"), sep = "\t",
+            tracks.summary.df, row.names = FALSE, quote = FALSE)
 
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # code to make a map with slope background. This takes time

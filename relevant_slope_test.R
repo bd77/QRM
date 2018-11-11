@@ -15,17 +15,25 @@ library(rgeos)
 source(file = "relevant_slope.R")
 source(file = "DEMderiv.R")
 
+# loop over all tracks
+gpx.track.path <- "../gpxtracks/"
+animations.path <- "../Animations/"
+# track.list <- dir(path = gpx.track.path, pattern = ".gpx$")
+
+# read the tracks from the points data frame
+track.points.df <- read.table(file = "../gpxtracks/summary/tracks_points.txt",
+                              header = TRUE, sep = "\t")
+track.list <- unique(track.points.df$gpx.file)
+e.tracks <- extent(c(min(track.points.df$lon)-0.1, max(track.points.df$lon)+0.1,
+                     min(track.points.df$lat)-0.1, max(track.points.df$lat)+0.1))
+
 # read DEM of the Alps in LAEA epsg:3035
 dem.alps <- raster("../DEM/Alps/EUD_CP-DEMS_4500025000-AA.tif")
 # slope.alps <- terrain(dem.alps, opt = "slope", unit = 'degrees')
 # writeRaster(slope.alps, "../DEM/Alps/slope_alps.tif")
 
-# Extent of the Simplon area in WGS84, epsg:4326
-lon.min <- 7.966
-lon.max <- 8.603
-lat.min <- 46.160
-lat.max <- 46.543
-corner.points <- SpatialPoints(coords = matrix(c(lon.min, lon.max, lat.min, lat.max), nrow = 2),
+# Extent of the tracks area in WGS84, epsg:4326 as a polygon
+corner.points <- SpatialPoints(coords = matrix(c(e.tracks@xmin, e.tracks@xmax, e.tracks@ymin, e.tracks@ymax), nrow = 2),
                                proj4string = CRS("+init=epsg:4326"))
 # transform Simplon extent from WGS84 to LAEA
 extent.simplon <- extent(spTransform(corner.points, CRS("+init=epsg:3035")))
@@ -55,19 +63,26 @@ plot(dem.simplon, col = terrain.colors(20))
 pcurv.simplon <- DEMderiv(dem.simplon, attr = "plan.curvature", method = "evans")
 # plot(pcurv.simplon)
 
-# loop over all tracks
-gpx.track.path <- "C:/Documenten/QRM/gpxtracks/"
-animations.path <- "C:/Documenten/QRM/Animations/"
-track.list <- dir(path = gpx.track.path, pattern = "Daten.gpx$")
-gpx.file <- "14495_16908_95538_GPS-Daten.gpx"
+if (file.exists("track_point_properties.txt")) {
+  tpp.df <- read.table("track_point_properties.txt", sep = "\t", header = TRUE)
+  track.list <- track.list[!(track.list %in% paste0(unique(tpp.df$gpx.file), ".gpx"))]
+} else {
+  track.df <- data.frame()
+}
 
-track.df <- data.frame()
+gpx.file <- "2018-01-28 Canalone Gelato.gpx"
 
 for (gpx.file in track.list) {
   # read a track
-  gpx.file.full.path <- paste0(gpx.track.path, gpx.file)
+  # gpx.file.full.path <- paste0(gpx.track.path, gpx.file)
   gpx.name.no.ext <- sub(".gpx$", "", gpx.file)
-  gpx.raw <- readOGR(dsn = gpx.file.full.path, layer = "track_points")
+  # gpx.raw <- readOGR(dsn = gpx.file.full.path, layer = "track_points")
+  
+  # get the points data from the points table (reading gpx is slow)
+  mytrack.points.df <- track.points.df[track.points.df$gpx.file == gpx.file,]
+  gpx.raw <- SpatialPointsDataFrame(coords = mytrack.points.df[,c("lon", "lat")],
+                                    data = mytrack.points.df[, c("dt.s", "dx.m", "ele")],
+                                    proj4string = CRS("+init=epsg:4326"))
   
   # folder for the animation frames
   track.animation.path <- paste0(animations.path, gpx.name.no.ext)
@@ -79,10 +94,8 @@ for (gpx.file in track.list) {
   gpx.track <- spTransform(gpx.raw, proj4string(dem.simplon))
   track.extent <- extent(gBuffer(as(extent(gpx.track), 'SpatialPolygons'), width = 1000))
   dem.track <- crop(dem.simplon, track.extent)
-  
-  
 
-  i<-21
+  i<-1400
   # source(file = "relevant_slope.R")
   # loop over the whole track
   np <- NROW(gpx.track@coords)
@@ -97,13 +110,14 @@ for (gpx.file in track.list) {
     track.point.df <- data.frame(gpx.file = gpx.name.no.ext,
                                  point.id = i,
                                  x = track.point[1,1],
-                                 y = track.point[1,1],
+                                 y = track.point[1,2],
                                  lon = as.numeric(gpx.raw@coords[i,1]),
                                  lat = as.numeric(gpx.raw@coords[i,2]),
+                                 ele = extract(dem.track, track.point),
                                  local.slope = rsa.props@localSlope,
                                  local.aspect = rsa.props@localAspect,
                                  max.slope = rsa.props@maxSlope@data$slope)
-    track.df <- rbind(track.df, track.point.df)
+    tpp.df <- rbind(tpp.df, track.point.df)
   
     # plot the DEM, the track, the selected point, it's RSA
     # jpeg(paste0(track.animation.path, "/", sprintf("_%04d", i), ".jpg"), 
@@ -132,26 +146,41 @@ for (gpx.file in track.list) {
   } # loop over the track
 }
 
+write.table(track.df, file = "track_point_properties.txt",
+            row.names = FALSE, sep = "\t")
+
 library(geoR)
-v1 <- variog(coords = as.matrix(track.df[, c("x", "y")]), data = track.df$local.slope,
-             breaks = seq(0, 3000, 50))
+v1 <- variog(coords = as.matrix(tpp.df[, c("x", "y")]), data = track.df$local.slope,
+             breaks = seq(0, 1000, 20))
 # breaks = c(0, 2^(0:12))log="x",
-plot(v1)
-v1 <- variog(coords = as.matrix(track.df[, c("x", "y")]), data = track.df$max.slope,
-             breaks = seq(0, 3000, 50))
+png("Variogram local slope.png")
+plot(v1, main = "Variogram for local slope")
+dev.off()
+
+v1 <- variog(coords = as.matrix(tpp.df[, c("x", "y")]), data = track.df$max.slope,
+             breaks = seq(0, 2000, 20))
 # breaks = c(0, 2^(0:12))log="x",
-plot(v1)
+png("Variogram max slope.png")
+plot(v1, main = "Variogram for maximum slope")
+dev.off()
+
 var(track.df$max.slope)
 
 library(gstat)
-coordinates(track.df) = ~x+y
-local.slope.variogram <- variogram(local.slope~1, track.df, width = 10)
-plot(local.slope.variogram, xlim = c(0, 100))
+coordinates(tpp.df) = ~x+y
+local.slope.variogram <- variogram(local.slope~1, tpp.df, width = 20)
+plot(local.slope.variogram, xlim = c(0, 1000))
 
-local.aspect.variogram <- variogram(local.aspect~1, track.df, width = 10, cutoff = 10000)
-plot(local.aspect.variogram)
+local.aspect.variogram <- variogram(local.aspect~1, tpp.df, width = 10, cutoff = 2000)
+png("Variogram aspect.png")
+plot(local.aspect.variogram, main = "Variogram for aspect")
+dev.off()
 
-
+# check for colinearity
+png("Collinearity local and max slope.png")
+plot(tpp.df$local.slope, tpp.df$max.slope,
+     xlab = "Local slope (deg)", ylab = "Maximum relevant slope (deg)")
+dev.off()
 # rsa.points.matrix <- matrix(ncol = 2, nrow = 0)  
 # for (j in (1:3)) {
 #   rsa.points.matrix <- rbind(rsa.points.matrix,
