@@ -12,6 +12,7 @@ setwd(wd)
 library(raster)
 library(rgdal)
 library(rgeos)
+library(geoR)
 source(file = "relevant_slope.R")
 source(file = "DEMderiv.R")
 
@@ -67,12 +68,13 @@ if (file.exists("track_point_properties.txt")) {
   tpp.df <- read.table("track_point_properties.txt", sep = "\t", header = TRUE)
   track.list <- track.list[!(track.list %in% paste0(unique(tpp.df$gpx.file), ".gpx"))]
 } else {
-  track.df <- data.frame()
+  tpp.df <- data.frame()
 }
 
 gpx.file <- "2018-01-28 Canalone Gelato.gpx"
 
 for (gpx.file in track.list) {
+  print(gpx.file)
   # read a track
   # gpx.file.full.path <- paste0(gpx.track.path, gpx.file)
   gpx.name.no.ext <- sub(".gpx$", "", gpx.file)
@@ -99,8 +101,14 @@ for (gpx.file in track.list) {
   # source(file = "relevant_slope.R")
   # loop over the whole track
   np <- NROW(gpx.track@coords)
+  prev.prog <- 0
   for(i in 1:np) {
-    print(paste0(round(i/np*100), "%"))
+    new.prog <- round(i/np*100)
+    if ((new.prog - prev.prog) > 10) {
+      print(paste0(new.prog, "%"))
+      prev.prog <- new.prog
+    }
+    
     # convert the track point to a 1x2 matrix
     track.point <- matrix(gpx.track@coords[i,], ncol = 2)
     # determine the relevant slope area
@@ -146,18 +154,21 @@ for (gpx.file in track.list) {
   } # loop over the track
 }
 
-write.table(track.df, file = "track_point_properties.txt",
+# write the points data with properties to a file
+write.table(tpp.df, file = "track_point_properties.txt",
             row.names = FALSE, sep = "\t")
 
-library(geoR)
-v1 <- variog(coords = as.matrix(tpp.df[, c("x", "y")]), data = track.df$local.slope,
+# calculate the spatiovariogram
+v1 <- variog(coords = as.matrix(tpp.df[, c("x", "y")]), data = tpp.df$local.slope,
              breaks = seq(0, 1000, 20))
 # breaks = c(0, 2^(0:12))log="x",
 png("Variogram local slope.png")
 plot(v1, main = "Variogram for local slope")
 dev.off()
 
-v1 <- variog(coords = as.matrix(tpp.df[, c("x", "y")]), data = track.df$max.slope,
+np <- NROW(tpp.df)
+
+v1 <- variog(coords = as.matrix(tpp.df[1:25000, c("x", "y")]), data = tpp.df$max.slope[1:25000],
              breaks = seq(0, 2000, 20))
 # breaks = c(0, 2^(0:12))log="x",
 png("Variogram max slope.png")
